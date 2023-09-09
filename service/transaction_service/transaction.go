@@ -7,12 +7,15 @@ import (
 	"signature-app/database/model"
 	"signature-app/database/repository"
 	responsedomain "signature-app/domain/response_domain"
+	"signature-app/helper"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/lithammer/shortuuid"
 )
 
 type TransactionService struct {
@@ -116,6 +119,41 @@ func (s *TransactionService) SendTransaction(strPrivateKey, hexToAddress, data s
 	}, nil
 }
 
-func (s *TransactionService) Ask(payload model.TransactionModel) error {
+func (s *TransactionService) AddAsk(payload model.TransactionModel) error {
+	var wg sync.WaitGroup
+	help := helper.NewHelper(s.cl, s.ctx)
+	payload.Id = shortuuid.New()
+	payload.Status = 0
+	payload.CreatedAt = time.Now().Format(time.RFC3339)
 
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+
+		help.PostRequestAsk("http://localhost:8081/ask-server", payload)
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		help.PostRequestAsk("http://localhost:8082/ask-server", payload)
+	}()
+	_, err := s.db.AddAsk(payload)
+
+	wg.Wait()
+
+	return err
+}
+
+func (s *TransactionService) AddAskFromServers(payload model.TransactionModel) error {
+	payload.Id = shortuuid.New()
+	payload.Status = 0
+	payload.CreatedAt = time.Now().Format(time.RFC3339)
+	_, err := s.db.AddAsk(payload)
+	return err
+}
+
+func (s *TransactionService) UpdateAsk(data model.TransactionModel) error {
+	err := s.db.AcceptAsk(data.TxId, data.UpdatedAt)
+	return err
 }

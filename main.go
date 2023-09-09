@@ -46,6 +46,7 @@ func main() {
 	contractController := contractcontroller.NewController(cl, ctx, os.Getenv("CONTRACT_ADDRESS"))
 
 	r := gin.Default()
+	r.Static("/static", "./static")
 
 	r.POST("/create-account", accountController.CreateAccount)
 	r.POST("/import-account", accountController.ImportAccount)
@@ -60,8 +61,10 @@ func main() {
 	r.POST("/add-dokumen", contractController.AddDokumen)
 	r.POST("/add-identitas", contractController.AddIdentitas)
 	r.GET("/faucet", contractController.GetETH)
-
 	r.GET("/balance", accountController.GetETH)
+
+	r.POST("/Ask", transactioncontroller.AddAsk)
+	r.POST("/ask-server", transactioncontroller.AddAskFromServers)
 
 	r.Run()
 }

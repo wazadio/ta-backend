@@ -13,7 +13,7 @@ type Database struct {
 }
 
 func NewDb() (*Database, error) {
-	db, err := sql.Open("sqlite3", "../db.db")
+	db, err := sql.Open("sqlite3", "database/db.db")
 	if err != nil {
 		return nil, err
 	}
@@ -40,16 +40,14 @@ func (d *Database) AddAsk(values model.TransactionModel) (id int64, err error) {
 	return
 }
 
-func (d *Database) AcceptAsk(txId string) error {
-	now := time.Now().Format(time.RFC3339)
-
+func (d *Database) AcceptAsk(txId, updatedAt string) error {
 	_, err := d.DB.Exec(`
 		UPDATE ask
 		SET 
 			tx_id=?
 			status=?,
 			updated_at=?
-	`, txId, 1, now)
+	`, txId, 1, updatedAt)
 	if err != nil {
 		return err
 	}
