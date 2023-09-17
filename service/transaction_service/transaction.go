@@ -3,7 +3,9 @@ package transactionservice
 import (
 	"context"
 	"crypto/ecdsa"
+	"fmt"
 	"math/big"
+	"os"
 	"signature-app/database/model"
 	"signature-app/database/repository"
 	responsedomain "signature-app/domain/response_domain"
@@ -71,7 +73,15 @@ func (s *TransactionService) GetAllTransactions() (txs []responsedomain.Transact
 	return txs, nil
 }
 
-func (s *TransactionService) SendTransaction(strPrivateKey, hexToAddress, data string) (*responsedomain.TransactionResponse, error) {
+func (s *TransactionService) SendTransaction(strPrivateKey, to, data, askId string) (*responsedomain.TransactionResponse, error) {
+	var wg sync.WaitGroup
+	help := helper.NewHelper(s.cl, s.ctx)
+	body := model.TransactionModel{
+		Id:        askId,
+		ToAddress: to,
+		Data:      data,
+	}
+
 	privateKey, err := crypto.HexToECDSA(strPrivateKey)
 	if err != nil {
 		return nil, err
@@ -96,8 +106,8 @@ func (s *TransactionService) SendTransaction(strPrivateKey, hexToAddress, data s
 		return nil, err
 	}
 
-	toAddress := common.HexToAddress(hexToAddress)
-	tx := types.NewTransaction(nonce, toAddress, value, gasLimit, gasPrice, []byte(data))
+	toAddress := common.HexToAddress(body.ToAddress)
+	tx := types.NewTransaction(nonce, toAddress, value, gasLimit, gasPrice, []byte(body.Data))
 
 	chainID, err := s.cl.NetworkID(context.Background())
 	if err != nil {
@@ -109,7 +119,27 @@ func (s *TransactionService) SendTransaction(strPrivateKey, hexToAddress, data s
 		return nil, err
 	}
 
+	body.TxId = string(signedTx.Hash().Hex())
+	body.UpdatedAt = signedTx.Time().Format(time.RFC3339)
+
 	err = s.cl.SendTransaction(context.Background(), signedTx)
+	if err != nil {
+		return nil, err
+	}
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+
+		help.PostRequestAcceptAsk(fmt.Sprintf("http://localhost%s/accept-ask", os.Getenv("PORT_ADDRESS_2")), body)
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		help.PostRequestAcceptAsk(fmt.Sprintf("http://localhost%s/accept-ask", os.Getenv("PORT_ADDRESS_3")), body)
+	}()
+	err = s.db.AcceptAsk(body.Id, body.TxId, body.UpdatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -130,13 +160,13 @@ func (s *TransactionService) AddAsk(payload model.TransactionModel) error {
 	go func() {
 		defer wg.Done()
 
-		help.PostRequestAsk("http://localhost:8081/ask-server", payload)
+		help.PostRequestAsk(fmt.Sprintf("http://localhost%s/ask-server", os.Getenv("PORT_ADDRESS_2")), payload)
 	}()
 
 	go func() {
 		defer wg.Done()
 
-		help.PostRequestAsk("http://localhost:8082/ask-server", payload)
+		help.PostRequestAsk(fmt.Sprintf("http://localhost%s/ask-server", os.Getenv("PORT_ADDRESS_3")), payload)
 	}()
 	_, err := s.db.AddAsk(payload)
 
@@ -146,14 +176,16 @@ func (s *TransactionService) AddAsk(payload model.TransactionModel) error {
 }
 
 func (s *TransactionService) AddAskFromServers(payload model.TransactionModel) error {
-	payload.Id = shortuuid.New()
-	payload.Status = 0
-	payload.CreatedAt = time.Now().Format(time.RFC3339)
 	_, err := s.db.AddAsk(payload)
 	return err
 }
 
 func (s *TransactionService) UpdateAsk(data model.TransactionModel) error {
-	err := s.db.AcceptAsk(data.TxId, data.UpdatedAt)
+	err := s.db.AcceptAsk(data.Id, data.TxId, data.UpdatedAt)
 	return err
+}
+
+func (s *TransactionService) GetAsk(address string, status int) (data []model.TransactionModel, err error) {
+	data, err = s.db.GetAsk(address, status)
+	return
 }

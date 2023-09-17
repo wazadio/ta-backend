@@ -65,6 +65,8 @@ func main() {
 
 	r.POST("/Ask", transactioncontroller.AddAsk)
 	r.POST("/ask-server", transactioncontroller.AddAskFromServers)
+	r.GET("/get-ask", transactioncontroller.GetAsk)
+	r.POST("/accept-ask", transactioncontroller.AcceptAsk)
 
-	r.Run()
+	r.Run(os.Getenv("PORT_ADDRESS"))
 }

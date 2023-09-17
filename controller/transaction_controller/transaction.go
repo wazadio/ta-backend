@@ -49,7 +49,7 @@ func (c *controller) SendData(ctx *gin.Context) {
 		return
 	}
 
-	res, err := c.Service.SendTransaction(body.PrivateKey, body.To, body.Data)
+	res, err := c.Service.SendTransaction(body.PrivateKey, body.To, body.Data, body.AskId)
 	if err != nil {
 		ctx.AbortWithError(http.StatusInternalServerError, err)
 		return
@@ -144,5 +144,25 @@ func (c *controller) AcceptAsk(ctx *gin.Context) {
 	ctx.JSON(
 		http.StatusOK,
 		err,
+	)
+}
+
+func (c *controller) GetAsk(ctx *gin.Context) {
+	body := requestdomain.GetAskRequest{}
+	err := ctx.ShouldBindJSON(&body)
+	if err != nil {
+		ctx.AbortWithError(http.StatusBadRequest, err)
+		return
+	}
+
+	res, err := c.Service.GetAsk(body.Address, body.Status)
+	if err != nil {
+		ctx.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+
+	ctx.JSON(
+		http.StatusOK,
+		res,
 	)
 }

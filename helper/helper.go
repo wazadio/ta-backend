@@ -3,6 +3,7 @@ package helper
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"math"
@@ -46,13 +47,18 @@ func (h *helper) CheckBalance(address string) (*big.Float, error) {
 func (h *helper) PostRequestAsk(url string, data model.TransactionModel) error {
 	payload := &bytes.Buffer{}
 	writer := multipart.NewWriter(payload)
-	_ = writer.WriteField("from_address", "address")
-	_ = writer.WriteField("from_name", "Juni Dio Kasandra")
-	_ = writer.WriteField("to_address", "toaddress")
-	_ = writer.WriteField("to_name", "wazadio")
+	_ = writer.WriteField("id", data.Id)
+	_ = writer.WriteField("from_address", data.FromAddress)
+	_ = writer.WriteField("from_name", data.FromName)
+	_ = writer.WriteField("to_address", data.ToAddress)
+	_ = writer.WriteField("to_name", data.ToName)
 	file, err := os.Open("./" + data.Data)
+	if err != nil {
+		return err
+	}
+
 	defer file.Close()
-	part2, err := writer.CreateFormFile("file", filepath.Base("./"+data.Data))
+	part2, _ := writer.CreateFormFile("file", filepath.Base("./"+data.Data))
 	_, err = io.Copy(part2, file)
 	if err != nil {
 		fmt.Println(err)
@@ -81,6 +87,20 @@ func (h *helper) PostRequestAsk(url string, data model.TransactionModel) error {
 		fmt.Println(err)
 	}
 	fmt.Println(string(body))
+
+	return nil
+}
+
+func (h *helper) PostRequestAcceptAsk(url string, data model.TransactionModel) error {
+	payload, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+
+	_, err = http.Post(url, "application/json", bytes.NewBuffer(payload))
+	if err != nil {
+		fmt.Println(err)
+	}
 
 	return nil
 }

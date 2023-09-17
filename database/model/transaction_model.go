@@ -1,7 +1,7 @@
 package model
 
 type TransactionModel struct {
-	Id          string `json:"id"`
+	Id          string `json:"id" form:"id"`
 	TxId        string `json:"tx_id"`
 	FromAddress string `json:"from_address" form:"from_address"`
 	FromName    string `json:"from_name" form:"from_name"`
