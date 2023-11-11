@@ -5,7 +5,7 @@ import (
 	"net/http"
 	requestdomain "signature-app/domain/request_domain"
 	"signature-app/helper"
-	accountservice "signature-app/service/account_service"
+	"signature-app/service/interfaces"
 
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/gin-gonic/gin"
@@ -14,14 +14,14 @@ import (
 type controller struct {
 	cl      *ethclient.Client
 	ctx     context.Context
-	Service *accountservice.AccountService
+	service interfaces.AccountService
 }
 
-func NewController(cl *ethclient.Client, ctx context.Context, accountService *accountservice.AccountService) *controller {
+func NewController(cl *ethclient.Client, ctx context.Context, accountService interfaces.AccountService) *controller {
 	return &controller{
 		cl:      cl,
 		ctx:     ctx,
-		Service: accountService,
+		service: accountService,
 	}
 }
 
@@ -33,7 +33,7 @@ func (c *controller) CreateAccount(ctx *gin.Context) {
 		return
 	}
 
-	res, err := c.Service.CreateNewAccount()
+	res, err := c.service.CreateNewAccount()
 	if err != nil {
 		ctx.AbortWithError(http.StatusInternalServerError, err)
 		return
@@ -53,7 +53,7 @@ func (c *controller) ImportAccount(ctx *gin.Context) {
 		return
 	}
 
-	res, err := c.Service.ImportAccount(body.Mnemonic)
+	res, err := c.service.ImportAccount(body.Mnemonic)
 	if err != nil {
 		ctx.AbortWithError(http.StatusInternalServerError, err)
 		return
@@ -82,6 +82,27 @@ func (c *controller) GetETH(ctx *gin.Context) {
 		http.StatusOK,
 		gin.H{
 			"balance": balance,
+		},
+	)
+}
+
+func (c *controller) AddNewToken(ctx *gin.Context) {
+	body := requestdomain.NewTokenRequest{}
+	err := ctx.ShouldBindJSON(&body)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"err": err.Error()})
+		return
+	}
+
+	err = c.service.AddNewTokenFromServer(body)
+	if err != nil {
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"err": err.Error()})
+		return
+	}
+	ctx.JSON(
+		http.StatusOK,
+		gin.H{
+			"status": "success",
 		},
 	)
 }

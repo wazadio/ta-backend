@@ -1,12 +1,10 @@
 package requestdomain
 
-type GetTransactionsRequest struct{}
+import "signature-app/database/model"
 
 type SendTransactionRequest struct {
-	AskId      string `json:"ask_id"`
-	PrivateKey string `json:"private_key"`
-	To         string `json:"to"`
-	Data       string `json:"data"`
+	PrivateKey string `json:"private_key" form:"private_key"`
+	model.TransactionModel
 }
 
 type GetAskRequest struct {

@@ -10,7 +10,7 @@ type AddDokumenRequest struct {
 }
 
 type AddIdentitasRequest struct {
-	Nama       string `json:"nama_dokumen"`
+	Nama       string `json:"nama"`
 	PrivateKey string `json:"private_key"`
 	Nomor      int    `json:"nomor"`
 	Alamat     string `json:"alamat"`

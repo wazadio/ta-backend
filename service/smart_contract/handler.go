@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"math/big"
+	"os"
+	"signature-app/database/repository"
 	"signature-app/domain"
 	requestdomain "signature-app/domain/request_domain"
 	responsedomain "signature-app/domain/response_domain"
@@ -24,6 +26,7 @@ type caller struct {
 	cl              *ethclient.Client
 	ctx             context.Context
 	contractAddress string
+	db              *repository.Database
 }
 
 func NewCaller(cl *ethclient.Client, ctx context.Context, contractAddress string) *caller {
@@ -103,7 +106,7 @@ func (c *caller) Deploy(privateKey string) (contractDetail responsedomain.Deploy
 }
 
 func (c *caller) GetAdmin() (adminAddress string, err error) {
-	address := common.HexToAddress("0x26668160D5D2b03d7bb015a1D50D8e0442931e77")
+	address := common.HexToAddress(c.contractAddress)
 	instance, err := data.NewData(address, c.cl)
 	if err != nil {
 		return adminAddress, err
@@ -161,6 +164,8 @@ func (c *caller) AddDokumen(namaDokumen, privateKey string) (isSuccess responsed
 	if err != nil {
 		return isSuccess, err
 	}
+
+	fmt.Println("contract is loaded")
 
 	chainId, err := c.cl.ChainID(c.ctx)
 	if err != nil {
@@ -279,6 +284,13 @@ func (c *caller) AddIdentitas(payload requestdomain.AddIdentitasRequest) (isSucc
 		return isSuccess, err
 	}
 
+	if payload.Status == os.Getenv("PARTY") {
+		updateErr := c.db.UpdateDeviceTokenStatus(payload.Alamat)
+		if updateErr != nil {
+			log.Println("error update token status : ", updateErr)
+		}
+	}
+
 	isSuccess.IsSuccess = true
 
 	return
@@ -346,6 +358,126 @@ func (c *caller) GetETH(privateKey string) (isSuccess domain.BaseField, err erro
 	auth.GasPrice = gasPrice
 
 	_, err = instance.GetETH(auth)
+	if err != nil {
+		return isSuccess, err
+	}
+
+	isSuccess.IsSuccess = true
+
+	return
+}
+
+func (c *caller) DeleteDokumen(namaDokumen, privateKey string) (isSuccess responsedomain.AddDokumenResponse, err error) {
+	address := common.HexToAddress(c.contractAddress)
+	instance, err := data.NewData(address, c.cl)
+	if err != nil {
+		return isSuccess, err
+	}
+
+	chainId, err := c.cl.ChainID(c.ctx)
+	if err != nil {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	ecdsaPrivateKey, err := crypto.HexToECDSA(privateKey)
+	if err != nil {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	publicKey := ecdsaPrivateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
+	nonce, err := c.cl.PendingNonceAt(context.Background(), fromAddress)
+	if err != nil {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	gasPrice, err := c.cl.SuggestGasPrice(c.ctx)
+	if err != nil {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	auth, err := bind.NewKeyedTransactorWithChainID(ecdsaPrivateKey, chainId)
+	if err != nil {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	auth.Nonce = big.NewInt(int64(nonce))
+	auth.Value = big.NewInt(0)     // in wei
+	auth.GasLimit = uint64(300000) // in units
+	auth.GasPrice = gasPrice
+
+	_, err = instance.DeleteDokumen(auth, namaDokumen)
+	if err != nil {
+		return isSuccess, err
+	}
+
+	isSuccess.IsSuccess = true
+
+	return
+}
+
+func (c *caller) DeleteIdentitas(alamat, privateKey string) (isSuccess responsedomain.AddDokumenResponse, err error) {
+	address := common.HexToAddress(c.contractAddress)
+	instance, err := data.NewData(address, c.cl)
+	if err != nil {
+		return isSuccess, err
+	}
+
+	chainId, err := c.cl.ChainID(c.ctx)
+	if err != nil {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	ecdsaPrivateKey, err := crypto.HexToECDSA(privateKey)
+	if err != nil {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	publicKey := ecdsaPrivateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	fromAddress := crypto.PubkeyToAddress(*publicKeyECDSA)
+	nonce, err := c.cl.PendingNonceAt(context.Background(), fromAddress)
+	if err != nil {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	gasPrice, err := c.cl.SuggestGasPrice(c.ctx)
+	if err != nil {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	auth, err := bind.NewKeyedTransactorWithChainID(ecdsaPrivateKey, chainId)
+	if err != nil {
+		log.Println(err)
+		return isSuccess, err
+	}
+
+	auth.Nonce = big.NewInt(int64(nonce))
+	auth.Value = big.NewInt(0)     // in wei
+	auth.GasLimit = uint64(300000) // in units
+	auth.GasPrice = gasPrice
+
+	_, err = instance.DeleteIdentitas(auth, alamat)
 	if err != nil {
 		return isSuccess, err
 	}

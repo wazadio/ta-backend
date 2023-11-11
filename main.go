@@ -8,7 +8,9 @@ import (
 	contractcontroller "signature-app/controller/contract_controller"
 	transactioncontroller "signature-app/controller/transaction_controller"
 	"signature-app/database/repository"
+	"signature-app/helper"
 	accountservice "signature-app/service/account_service"
+	"signature-app/service/interfaces"
 	transactionservice "signature-app/service/transaction_service"
 
 	"github.com/ethereum/go-ethereum/ethclient"
@@ -23,33 +25,48 @@ func main() {
 	}
 
 	ctx := context.Background()
-	ipcUrl := "../fakultas_home/database/geth.ipc"
-	httpUrl := "http://127.0.0.1:9001"
-	_ = ipcUrl
+	wsUrl := os.Getenv("NODE_WEBSOCKET_ADDRESS")
 
-	cl, err := ethclient.Dial(httpUrl)
+	cl, err := ethclient.Dial(wsUrl)
 	if err != nil {
-		panic(err)
+		log.Fatal("error dialing eth client : ", err)
 	}
 
 	db, err := repository.NewDb()
 	if err != nil {
-		panic(err)
+		log.Fatal(err)
 	}
 
-	accountService := accountservice.NewAccountDetail()
+	// kafkaTopics := kafkaclient.KafkaTopics{
+	// 	Token:     os.Getenv("KAFKA_TOPIC_TOKEN"),
+	// 	PendingTx: os.Getenv("KAFKA_TOPIC_PENDING_TX"),
+	// 	NewBlock:  os.Getenv("KAFKA_TOPIC_NEW_BLOCK"),
+	// }
+
+	// log.Printf("%+v", kafkaTopics)
+
+	// kc := kafkaclient.NewKafkaClient(ctx, os.Getenv("KAFKA_ADDRESS"), os.Getenv("KAFKA_GROUP"), db, kafkaTopics)
+	subcription := helper.NewSubcription(cl, ctx, db)
+
+	// go kc.ReadMessagesToken()
+	// go kc.ReadMessagesPendingTx()
+	go subcription.SubcribeNewBlock()
+	go subcription.SubcribePendingTx()
+
+	var accountService interfaces.AccountService = accountservice.NewAccountService(ctx, cl, db)
 	accountController := accountcontroller.NewController(cl, ctx, accountService)
 
-	transactionService := transactionservice.NewTransaction(cl, ctx, db)
+	var transactionService interfaces.TransactionService = transactionservice.NewTransaction(cl, ctx, db)
 	transactioncontroller := transactioncontroller.NewController(transactionService)
 
-	contractController := contractcontroller.NewController(cl, ctx, os.Getenv("CONTRACT_ADDRESS"))
+	contractController := contractcontroller.NewController(cl, ctx, os.Getenv("CONTRACT_ADDRESS"), db)
 
 	r := gin.Default()
 	r.Static("/static", "./static")
 
 	r.POST("/create-account", accountController.CreateAccount)
 	r.POST("/import-account", accountController.ImportAccount)
+	r.POST("/new-device-token", accountController.AddNewToken)
 
 	r.GET("/transactions", transactioncontroller.GetAllTransactions)
 	r.POST("/send", transactioncontroller.SendData)
@@ -62,11 +79,18 @@ func main() {
 	r.POST("/add-identitas", contractController.AddIdentitas)
 	r.GET("/faucet", contractController.GetETH)
 	r.GET("/balance", accountController.GetETH)
+	r.DELETE("/delete-dokumen", contractController.DeleteDokumen)
+	r.DELETE("/delete-identitas", contractController.DeleteIdentitas)
 
 	r.POST("/Ask", transactioncontroller.AddAsk)
 	r.POST("/ask-server", transactioncontroller.AddAskFromServers)
 	r.GET("/get-ask", transactioncontroller.GetAsk)
 	r.POST("/accept-ask", transactioncontroller.AcceptAsk)
+	r.GET("/get-ask/:id", transactioncontroller.GetOneAsk)
+	r.GET("/get-give", transactioncontroller.GetGive)
+	r.GET("/get-signed-transaction/:tx-id", transactioncontroller.GetASignedTransaction)
+	r.POST("/give-direct", transactioncontroller.AddAskDirect)
+	r.POST("/sign-direct/:id", transactioncontroller.SignDirect)
 
 	r.Run(os.Getenv("PORT_ADDRESS"))
 }

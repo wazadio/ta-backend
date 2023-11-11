@@ -9,3 +9,8 @@ type ImportAccountRequest struct {
 type CreateAdminAccountRequest struct {
 	Password string `json:"password"`
 }
+
+type NewTokenRequest struct {
+	Address string `json:"address"`
+	Token   string `json:"token"`
+}
